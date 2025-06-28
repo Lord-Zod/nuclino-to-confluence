@@ -7,18 +7,14 @@ Based on the [Markdown to Confluence Page](https://github.com/rittmanmead/md_to_
 
 Python3 and pip3 are required to run this script, if you do not have them already follow these steps
 
-**download and install setuptools**
-```SHELL
-curl -O https://bootstrap.pypa.io/ez_setup.py
-python3 ez_setup.py
-```
-**download and install pip**
-```SHELL
-curl -O https://bootstrap.pypa.io/get-pip.py
-python3 get-pip.py
-```
+## Usage - get_nuclino_entity_tree.py
 
-## Usage
+The purpose of this is to analyze the entity relationships between docs and the general site complexity
+It will create a map of docs as a yaml file
+
+
+
+## Usage - import.py
 
 - In Nuclino administrators can [export workspaces](https://help.nuclino.com/fb60e6f6-export-a-workspace) in the Markdown format, this operation will create a folder with a bunch of .md files.
 - Clone this repo

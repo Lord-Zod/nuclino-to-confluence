@@ -3,3 +3,4 @@ __pycache__/
 *$py.class
 
 .vscode
+.password_file_ini
