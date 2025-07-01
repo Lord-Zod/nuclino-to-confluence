@@ -1,20 +1,34 @@
-# nuclino-to-confluence
-A Python script to import a Nuclino Workspaces into a Confluence Space
+A series of python scripts to import Nuclino Workspaces, with archival and history information, into a Confluence Space
 
-Based on the [Markdown to Confluence Page](https://github.com/rittmanmead/md_to_conf) script by [Rittman Mead](https://github.com/RittmanMead)
+This is a [fork of a repo from bitrise-io](https://github.com/bitrise-io/nuclino-to-confluence) which itself is based on the [Markdown to Confluence Page](https://github.com/rittmanmead/md_to_conf) script by [Rittman Mead](https://github.com/RittmanMead)
+
+
 
 ## Requirements
 
 Python3 and pip3 are required to run this script, if you do not have them already follow these steps
 
-## Usage - get_nuclino_entity_tree.py
+## Usage - `get_nuclino_entity_tree.py`
 
 The purpose of this is to analyze the entity relationships between docs and the general site complexity
 It will create a map of docs as a yaml file
 
+### Function - `get_workspaces`
+Uses the credentials supplied in `.password_file_ini` to get the list of workspaces for your site.
+Returns a dictionary in this form:
+```
+{ 
+    workspace_name: 
+    {
+        'id': <alphanumeric unique ID of the workspace>,
+        'name': <string, name of the workspace>
+        'childIds': <list of the unique IDs of the first level children items in the workspace>
+# nuclino-to-confluence
+    }
+}
+```
 
-
-## Usage - import.py
+## Usage - `import.py`
 
 - In Nuclino administrators can [export workspaces](https://help.nuclino.com/fb60e6f6-export-a-workspace) in the Markdown format, this operation will create a folder with a bunch of .md files.
 - Clone this repo

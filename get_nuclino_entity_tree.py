@@ -23,8 +23,10 @@ def get_workspaces()->dict:
         "https://api.nuclino.com/v0/workspaces",
         headers=headers
     )
-    OUT = results.json()
-    pprint(OUT)
+    data = results.json().get('data').get('results')
+    OUT = {
+        x['name']: {'name': x['name'], 'id': x['id'], 'childIds': x['childIds']} for x in data
+    }
     return OUT
 
 def get_nuclino_entity_tree()->dict:
