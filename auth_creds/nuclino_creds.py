@@ -16,7 +16,6 @@ def get_nuclino_auth_creds()->dict:
     config.read('.password_file_ini')
     OUT['user'] = config['nuclino']['user']
     OUT['key'] = config['nuclino']['key']
-    OUT['site_id'] = config['nuclino']['site_id']
     return OUT
 
 def get_nuclino_auth_request():
@@ -28,8 +27,4 @@ def get_nuclino_auth_request():
     headers = {
         'Authorization': creds['key'],
     }
-
-    params = {
-        'workspaceId': creds['site_id']
-    }
-    return headers, params
+    return headers

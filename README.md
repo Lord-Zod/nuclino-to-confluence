@@ -1,3 +1,6 @@
+![Project Status](https://img.shields.io/badge/status-in_progress-orange)
+
+# Overview
 A series of python scripts to import Nuclino Workspaces, with archival and history information, into a Confluence Space
 
 This is a [fork of a repo from bitrise-io](https://github.com/bitrise-io/nuclino-to-confluence) which itself is based on the [Markdown to Confluence Page](https://github.com/rittmanmead/md_to_conf) script by [Rittman Mead](https://github.com/RittmanMead)
