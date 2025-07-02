@@ -52,6 +52,7 @@ class DocEntity:
         self.created_by:DocUser = None
         self.updated_by:DocUser = None
         self.age:timedelta = None
+        self.url:str = None
 
 class DocEntityTree:
     """
@@ -147,6 +148,16 @@ def get_nuclino_entity_tree()->dict:
             params={'workspaceId': workspace.id},
             headers=headers
         )
+        docs = response.json().get('data').get('results')
+        for doc in docs:
+            tmp = DocEntity(doc['title'], doc['id'], 'Document', doc.get('childIds'))
+            tmp.created_date = datetime.strptime(doc['createdAt'], '%Y-%m-%dT%H:%M:%S.%fZ')
+            tmp.updated_date = datetime.strptime(doc['lastUpdatedAt'], '%Y-%m-%dT%H:%M:%S.%fZ')
+            tmp.created_by = users.get_user(doc['createdUserId'])
+            tmp.updated_by = users.get_user(doc['lastUpdatedUserId'])
+            tmp.workspace = workspace
+            tmp.parent = workspace
+            tmp.url = doc['url']
     return OUT
 
 
