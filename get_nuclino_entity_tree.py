@@ -4,7 +4,7 @@ Creates a yaml file representing the entity relationships of docs and collection
 ## PYTHON IMPORTS
 import configparser
 from datetime import datetime, timedelta
-from pprint import pprint
+from pprint import pprint, pformat
 import requests
 import yaml
 
@@ -72,6 +72,16 @@ class DocEntityTree:
             self.docs[doc_id] = tmp
             return tmp
 
+    def print_all_docs(self):
+        """
+
+        :return:
+        """
+        OUT = {}
+        for doc in self.docs:
+            OUT[doc.id] = doc.get_as_dict()
+        return yaml.dump(OUT, default_flow_style=False)
+
 user_list = UserList()
 doc_list = DocEntityTree()
 
@@ -90,6 +100,24 @@ class DocUser:
 
     def __lt__(self, other):
         return (f'{self.user_name_first}-{self.user_name_last}' < f'{other.user_name_first}-{other.user_name_last}')
+
+    def __repr__(self):
+        return f'{self.user_name_first}-{self.user_name_last}-{self.email}'
+
+    def __str__(self):
+        return yaml.dump(self.get_as_dict(), default_flow_style=False)
+
+    def get_as_dict(self):
+        """
+
+        :return:
+        """
+        return {
+            'user_id': self.user_id,
+            'user_name_first': self.user_name_first,
+            'user_name_last': self.user_name_last,
+            'email': self.email
+        }
 
 
 class DocEntity:
@@ -116,6 +144,33 @@ class DocEntity:
         self.updated_by:DocUser = None
         self.age:timedelta = None
         self.url:str = None
+
+    def __repr__(self):
+        return f'{self.workspace.name}-{self.name}-{self.type}-{self.updated_by.email}-{self.updated_date.strftime("%Y-%m-%d")}'
+
+    def __str__(self):
+        return yaml.dump(self.get_as_dict(), default_flow_style=False)
+
+    def get_as_dict(self):
+        """
+
+        :return:
+        """
+        return {
+            'name': self.name,
+            'id': self.id,
+            'type': self.type,
+            'childIDs': self.childIDs,
+            'workspace': self.workspace.name,
+            'parent': pformat(self.parent),
+            'children': pformat(self.children),
+            'created_date': self.created_date.strftime("%Y-%m-%d_%H:%M:%S") if self.created_date else None,
+            'updated_date': self.updated_date.strftime("%Y-%m-%d_%H:%M:%S") if self.updated_date else None,
+            'age': pformat(self.age),
+            'created_by': self.created_by.get_as_dict() if self.created_by else None,
+            'updated_by': self.updated_by.get_as_dict() if self.updated_by else None,
+            'url': self.url,
+        }
 
     # def get_children_docs(self):
     #     for child in self.childIDs:
@@ -230,4 +285,7 @@ def get_nuclino_entity_tree()->dict:
 
 if __name__ == '__main__':
     results = get_nuclino_entity_tree()
-    print(doc_list.docs)
+    print(doc_list.print_all_docs())
+    with open('nuclino_entity_tree.yaml', 'w') as outfile:
+        outfile.write(doc_list.print_all_docs())
+    print('end')
