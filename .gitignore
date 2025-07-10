@@ -1,4 +1,5 @@
 __pycache__/
+/junk_trials/
 *.py[cod]
 *$py.class
 
