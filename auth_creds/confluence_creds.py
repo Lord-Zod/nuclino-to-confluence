@@ -14,6 +14,8 @@ def get_confluence_auth_creds(path_to_creds:str='.password_file_ini')->dict:
     OUT = {
         'user': config['confluence']['user'],
         'key': config['confluence']['key'],
+        'domain': config['confluence']['domain'],
+        'spaceID': config['confluence']['spaceID'],
     }
 
     return OUT

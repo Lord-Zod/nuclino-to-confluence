@@ -30,71 +30,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - \
 %(message)s')
 LOGGER = logging.getLogger(__name__)
 
-# ArgumentParser to parse arguments and options
-PARSER = argparse.ArgumentParser()
-PARSER.add_argument('spacekey',
-                    help="Confluence Space key for the page. If omitted, will use user space.")
-PARSER.add_argument("folder", help="Path to the exported Nuclino Workspace")
-PARSER.add_argument("command", help="The import command: plan or execute")
-PARSER.add_argument('-u', '--username', help='Confluence username if $CONFLUENCE_USERNAME not set.')
-PARSER.add_argument('-p', '--password', help='Confluence password if $CONFLUENCE_PASSWORD not set.')
-PARSER.add_argument('-o', '--orgname',
-                    help='Confluence organisation if $CONFLUENCE_ORGNAME not set. '
-                         'e.g. https://XXX.atlassian.net/wiki'
-                         'If orgname contains a dot, considered as the fully qualified domain name.'
-                         'e.g. https://XXX')
-PARSER.add_argument('-l', '--loglevel', default='INFO',
-                    help='Use this option to set the log verbosity.')
-
-ARGS = PARSER.parse_args()
-
-# Assign global variables
-try:
-    # Set log level
-    LOGGER.setLevel(getattr(logging, ARGS.loglevel.upper(), None))
-
-    SPACE_KEY = ARGS.spacekey
-    WORK_FOLDER = ARGS.folder
-    IMPORT_COMMAND = ARGS.command
-    USERNAME = os.getenv('CONFLUENCE_USERNAME', ARGS.username)
-    PASSWORD = os.getenv('CONFLUENCE_PASSWORD', ARGS.password)
-    ORGNAME = os.getenv('CONFLUENCE_ORGNAME', ARGS.orgname)
-
-
-    if USERNAME is None:
-        LOGGER.error('Error: Username not specified by environment variable or option.')
-        sys.exit(1)
-
-    if PASSWORD is None:
-        LOGGER.error('Error: Password not specified by environment variable or option.')
-        sys.exit(1)
-
-    if not os.path.exists(WORK_FOLDER):
-        LOGGER.error('Error: Path: %s does not exist.', WORK_FOLDER)
-        sys.exit(1)
-
-    if not os.path.isdir(WORK_FOLDER):
-        LOGGER.error('Error: Path: %s is not a folder.', WORK_FOLDER)
-        sys.exit(1)
-
-    PLAN_FOLDER = os.path.join(WORK_FOLDER, "plan")
-
-    if SPACE_KEY is None:
-        SPACE_KEY = '~%s' % (USERNAME)
-
-    if ORGNAME is not None:
-        if ORGNAME.find('.') != -1:
-            CONFLUENCE_API_URL = 'https://%s' % ORGNAME
-        else:
-            CONFLUENCE_API_URL = 'https://%s.atlassian.net/wiki' % ORGNAME
-    else:
-        LOGGER.error('Error: Org Name not specified by environment variable or option.')
-        sys.exit(1)
-
-except Exception as err:
-    LOGGER.error('\n\nException caught:\n%s ', err)
-    LOGGER.error('\nFailed to process command line arguments. Exiting.')
-    sys.exit(1)
 
 def get_space_base_id():
     """
@@ -561,5 +496,73 @@ def main():
 
     LOGGER.info('Confluence Import %s completed successfully.', "Planning" if IMPORT_COMMAND == "plan" else "Execution")
 
+
+
 if __name__ == "__main__":
+
+    # ArgumentParser to parse arguments and options
+    PARSER = argparse.ArgumentParser()
+    PARSER.add_argument('spacekey',
+                        help="Confluence Space key for the page. If omitted, will use user space.")
+    PARSER.add_argument("folder", help="Path to the exported Nuclino Workspace")
+    PARSER.add_argument("command", help="The import command: plan or execute")
+    PARSER.add_argument('-u', '--username', help='Confluence username if $CONFLUENCE_USERNAME not set.')
+    PARSER.add_argument('-p', '--password', help='Confluence password if $CONFLUENCE_PASSWORD not set.')
+    PARSER.add_argument('-o', '--orgname',
+                        help='Confluence organisation if $CONFLUENCE_ORGNAME not set. '
+                             'e.g. https://XXX.atlassian.net/wiki'
+                             'If orgname contains a dot, considered as the fully qualified domain name.'
+                             'e.g. https://XXX')
+    PARSER.add_argument('-l', '--loglevel', default='INFO',
+                        help='Use this option to set the log verbosity.')
+
+    ARGS = PARSER.parse_args()
+
+    # Assign global variables
+    try:
+        # Set log level
+        LOGGER.setLevel(getattr(logging, ARGS.loglevel.upper(), None))
+
+        SPACE_KEY = ARGS.spacekey
+        WORK_FOLDER = ARGS.folder
+        IMPORT_COMMAND = ARGS.command
+        USERNAME = os.getenv('CONFLUENCE_USERNAME', ARGS.username)
+        PASSWORD = os.getenv('CONFLUENCE_PASSWORD', ARGS.password)
+        ORGNAME = os.getenv('CONFLUENCE_ORGNAME', ARGS.orgname)
+
+        if USERNAME is None:
+            LOGGER.error('Error: Username not specified by environment variable or option.')
+            sys.exit(1)
+
+        if PASSWORD is None:
+            LOGGER.error('Error: Password not specified by environment variable or option.')
+            sys.exit(1)
+
+        if not os.path.exists(WORK_FOLDER):
+            LOGGER.error('Error: Path: %s does not exist.', WORK_FOLDER)
+            sys.exit(1)
+
+        if not os.path.isdir(WORK_FOLDER):
+            LOGGER.error('Error: Path: %s is not a folder.', WORK_FOLDER)
+            sys.exit(1)
+
+        PLAN_FOLDER = os.path.join(WORK_FOLDER, "plan")
+
+        if SPACE_KEY is None:
+            SPACE_KEY = '~%s' % (USERNAME)
+
+        if ORGNAME is not None:
+            if ORGNAME.find('.') != -1:
+                CONFLUENCE_API_URL = 'https://%s' % ORGNAME
+            else:
+                CONFLUENCE_API_URL = 'https://%s.atlassian.net/wiki' % ORGNAME
+        else:
+            LOGGER.error('Error: Org Name not specified by environment variable or option.')
+            sys.exit(1)
+
+    except Exception as err:
+        LOGGER.error('\n\nException caught:\n%s ', err)
+        LOGGER.error('\nFailed to process command line arguments. Exiting.')
+        sys.exit(1)
+
     main()

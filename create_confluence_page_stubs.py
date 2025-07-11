@@ -19,13 +19,20 @@ def make_docs():
     with open('nuclino_entity_tree.yaml', 'r') as docs_file:
         data = yaml.safe_load(docs_file)
 
-    page_handler = PageHandler()
+    page_handler = PageHandler.PageHandler()
 
     countdown = 3
     for doc in data:
         if countdown <= 0:
             break
 
-        page_handler.
+        page_handler.create_page_content(data[doc])
+
+        if not page_handler.create_confluence_page():
+            return False
+        countdown -= 1
 
 
+
+if __name__ == '__main__':
+    make_docs()
