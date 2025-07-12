@@ -269,16 +269,28 @@ def get_nuclino_entity_tree()->dict:
     workspaces = get_workspaces(allowed_workspaces, users)
 
     for workspace in workspaces.docs:
-        response = requests.get(
-            'https://api.nuclino.com/v0/items',
-            params={'workspaceId': workspace.id},
-            headers=headers
-        )
-        docs = response.json().get('data').get('results')
-        for doc in docs:
-            doc['workspace'] = workspace
-            tmp = DocEntity.from_full_object(doc)
-            doc_list.docs.append(tmp)
+        limit_size = 100
+        load_size = 100
+        last_id = None
+        while load_size == limit_size:
+
+            response = requests.get(
+                'https://api.nuclino.com/v0/items',
+                params={
+                    'workspaceId': workspace.id,
+                    'limit': 100,
+                    'after': last_id
+                },
+                headers=headers
+            )
+            tmp_data = response.json()
+            docs = tmp_data.get('data').get('results')
+            load_size = len(docs)
+            last_id = docs[-1]['id']
+            for doc in docs:
+                doc['workspace'] = workspace
+                tmp = DocEntity.from_full_object(doc)
+                doc_list.docs.append(tmp)
 
     return True
     # return OUT
