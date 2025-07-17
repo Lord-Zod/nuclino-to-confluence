@@ -9,79 +9,6 @@ import yaml
 from auth_creds import nuclino_creds
 
 
-class UserList:
-    """
-    Stores all users as a lookup
-    If the user doesn't exist it will be queried from Nuclino
-        ,,, and added to the list
-    Else is will return the discovered user
-    """
-    def __init__(self):
-        self.users = {}
-
-    def get_user(self, user_id:str):
-        """
-
-        :param user_id:
-        :return:
-        """
-        if user_id in self.users.keys():
-            return self.users[user_id]
-        else:
-            headers = nuclino_creds.get_nuclino_auth_request()
-            results = requests.get(
-                f'https://api.nuclino.com/v0/users/{user_id}',
-                headers=headers
-            ).json().get('data')
-            tmp = DocUser(user_id, user_name_first=results.get('firstName'), user_name_last=results.get('lastName'), email=results.get('email'))
-            self.users[user_id] = tmp
-            return tmp
-
-class DocEntityTree:
-    """
-
-    """
-    def __init__(self):
-        self.docs = []
-
-    def get_all_children(self, nuclino_creds):
-        """
-
-        :return:
-        """
-        for doc in self.docs:
-            pass
-    def get_doc(self, doc_id:str):
-        """
-
-        :param doc_id:
-        :return:
-        """
-        if doc_id in self.docs.keys():
-            return self.docs[doc_id]
-        else:
-            headers = nuclino_creds.get_nuclino_auth_request()
-            results = requests.get(
-                f'https://api.nuclino.com/v0/items/{doc_id}',
-                headers=headers
-            ).json().get('data')
-            tmp = DocEntity(doc_id, user_name_first=results.get('firstName'), user_name_last=results.get('lastName'), email=results.get('email'))
-            self.docs[doc_id] = tmp
-            return tmp
-
-    def print_all_docs(self):
-        """
-
-        :return:
-        """
-        OUT = {}
-        for doc in self.docs:
-            OUT[doc.id] = doc.get_as_dict()
-        return yaml.dump(OUT, default_flow_style=False)
-
-user_list = UserList()
-doc_list = DocEntityTree()
-
 class DocUser:
     """
     Single user entity
@@ -132,8 +59,8 @@ class DocEntity:
         self.id = id
         self.childIDs = None
         self.type = type
-        self.workspace:DocEntity = None
-        self.parent:DocEntity = None
+        self.workspace = None
+        self.parent = None
         self.children:list = []
         self.created_date:datetime = None
         self.updated_date:datetime = None
@@ -148,6 +75,9 @@ class DocEntity:
     def __str__(self):
         return yaml.dump(self.get_as_dict(), default_flow_style=False)
 
+    def __eq__(self, other):
+        return self.id == other.id
+
     def get_as_dict(self):
         """
 
@@ -158,8 +88,8 @@ class DocEntity:
             'id': self.id,
             'type': self.type,
             'childIDs': self.childIDs,
-            'workspace': self.workspace.name,
-            'parent': pformat(self.parent),
+            'workspace': self.workspace,
+            'parent': self.parent,
             'children': pformat(self.children),
             'created_date': self.created_date.strftime("%Y-%m-%d_%H:%M:%S") if self.created_date else None,
             'updated_date': self.updated_date.strftime("%Y-%m-%d_%H:%M:%S") if self.updated_date else None,
@@ -169,9 +99,6 @@ class DocEntity:
             'url': self.url,
         }
 
-    # def get_children_docs(self):
-    #     for child in self.childIDs:
-    #         results =
     @classmethod
     def from_full_object(cls, data):
         """
@@ -200,3 +127,102 @@ class DocEntity:
             tmp.childIDs = data.get('childIds')
         tmp.url = data.get('url')
         return tmp
+
+
+
+class UserList:
+    """
+    Stores all users as a lookup
+    If the user doesn't exist it will be queried from Nuclino
+        ,,, and added to the list
+    Else is will return the discovered user
+    """
+    def __init__(self):
+        self.users = {}
+
+    def get_user(self, user_id:str):
+        """
+
+        :param user_id:
+        :return:
+        """
+        if user_id in self.users.keys():
+            return self.users[user_id]
+        else:
+            headers = nuclino_creds.get_nuclino_auth_request()
+            results = requests.get(
+                f'https://api.nuclino.com/v0/users/{user_id}',
+                headers=headers
+            ).json().get('data')
+            tmp = DocUser(user_id, user_name_first=results.get('firstName'), user_name_last=results.get('lastName'), email=results.get('email'))
+            self.users[user_id] = tmp
+            return tmp
+
+class DocEntityTree:
+    """
+
+    """
+    def __init__(self):
+        self.docs = {}
+
+    def get_all_children(self, nuclino_creds):
+        """
+
+        :return:
+        """
+        for doc in self.docs:
+            pass
+    def get_doc(self, doc_id:str):
+        """
+
+        :param doc_id:
+        :return:
+        """
+        if doc_id in self.docs.keys():
+            return self.docs[doc_id]
+        else:
+            headers = nuclino_creds.get_nuclino_auth_request()
+            results = requests.get(
+                f'https://api.nuclino.com/v0/items/{doc_id}',
+                headers=headers
+            ).json().get('data')
+            tmp = DocEntity(doc_id, user_name_first=results.get('firstName'), user_name_last=results.get('lastName'), email=results.get('email'))
+            self.docs[doc_id] = tmp
+            return tmp
+
+    def print_all_docs(self):
+        """
+
+        :return:
+        """
+        OUT = {}
+        for doc in list(self.docs.keys()):
+            OUT[doc] = self.docs[doc].get_as_dict()
+        return yaml.dump(OUT, default_flow_style=False)
+
+    def add_doc(self, doc_in:DocEntity):
+        """
+
+        :param doc_in:
+        :return:
+        """
+
+        # self.docs.append(doc_in)
+        if doc_in.id not in self.docs.keys():
+            self.docs[doc_in.id] = doc_in
+
+    def define_parents(self):
+        """
+
+        :return:
+        """
+        for doc_id in self.docs.keys():
+            if not self.docs[doc_id].childIDs:
+                continue
+            for childID in self.docs[doc_id].childIDs:
+                self.docs[childID].parent = doc_id
+
+
+user_list = UserList()
+doc_list = DocEntityTree()
+

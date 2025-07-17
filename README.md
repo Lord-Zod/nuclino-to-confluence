@@ -11,6 +11,24 @@ This is a [fork of a repo from bitrise-io](https://github.com/bitrise-io/nuclino
 
 Python3 and pip3 are required to run this script, if you do not have them already follow these steps
 
+## Usage - `.password_file_ini`
+* This file is purposely included in the `.gitignore` because it contains sensitive information
+* Below is the format of the file. 
+* Copy this into the base file of your repo and fill out
+```
+## filename: ./.password_file_ini
+
+[nuclino]
+user = <name of API key in Nuclino>
+key = <Nuclino API key value>
+
+[confluence]
+user = <Confluence registered email address>
+key = <Confluence registered API key for user>
+domain = <Confluence base domain>
+spaceID = <Numeric ID of the space>  <--  Confluence sees this as a **LONG** int data type when using the CRUD HTTP API 
+```
+
 ## Usage - `get_nuclino_entity_tree.py`
 
 The purpose of this is to analyze the entity relationships between docs and the general site complexity
