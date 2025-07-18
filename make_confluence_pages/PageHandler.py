@@ -78,11 +78,17 @@ class PageHandler:
             "Content-Type": "application/json"
         }
 
-        payload = json.dumps( [
-            {
-                "prefix": "global",
-                "name": f"nuclino-id_{self.src_data.get('id')}"
-            }]
+        payload = json.dumps(
+            [
+                {
+                    "prefix": "team",
+                    "name": f"nuclino-id_{self.src_data.get('id')}"
+                },
+                {
+                    "prefix": "team",
+                    "name": f"nuclino-migration"
+                }
+            ]
         )
 
         response = requests.request(
@@ -98,37 +104,49 @@ class PageHandler:
         OUT['status'] = True if response.status_code == 200 else False
         return OUT
 
-    def create_page_content(self, data):
+    def create_page_content(self, data, logger):
         """
 
         :param data:
+        :param logger:
         :return:
         """
-        self.src_data = data
-        meta_table = make_table(
-            url=data['url'],
-            name=data['name'],
-            created_by=data['created_by']['email'],
-            created_date=data['created_date'],
-            updated_by=data['updated_by']['email'],
-            updated_date=data['updated_date'],
-            type=data['type'],
-            age=data['age'],
-        )
+        OUT = {
+            'status': False,
+            'msg': 'Uninitialized'
+        }
+        try:
+            self.src_data = data
+            meta_table = make_table(
+                url=data['url'],
+                name=data['name'],
+                created_by=data['created_by']['email'],
+                created_date=data['created_date'],
+                updated_by=data['updated_by']['email'],
+                updated_date=data['updated_date'],
+                type=data['type'],
+                age=data['age'],
+            )
+            if not meta_table or meta_table == '':
+                logger.warning(f'Creating page header table failed with input data: {data}')
 
-        # Get doc body
-        preview_results = get_nuclino_page_content(data['id'])
+            # Get doc body
+            preview_results = get_nuclino_page_content(data['id'])
 
-        body = self._convert_nuclino_to_confluence_html(preview_results)
+            body = self._convert_nuclino_to_confluence_html(preview_results)
 
-        # Format body
-        self.page_content = make_page_body(
-            table=meta_table,
-            preview_text=preview_results[:200],
-            body=body,
-        )
+            # Format body
+            self.page_content = make_page_body(
+                table=meta_table,
+                preview_text=preview_results[:200],
+                body=body,
+            )
+            OUT['status'] = True
+            OUT['msg'] = 'Success'
+        except Exception as e:
+            OUT['msg'] = str(e)
 
-        print(self.page_content)
+        return OUT
 
     def create_confluence_page(self, parent_folder):
         """
@@ -137,7 +155,12 @@ class PageHandler:
         """
         # This code sample uses the 'requests' library:
         # http://docs.python-requests.org
-
+        OUT = {
+            'status':False,
+            'msg': 'Uninitialized',
+            'status_code': 600,
+            'return': None
+        }
         auth_creds = get_confluence_auth_creds()
         url = f"https://{auth_creds.get('domain')}/wiki/api/v2/pages"
         auth = HTTPBasicAuth(
@@ -150,31 +173,46 @@ class PageHandler:
             "Content-Type": "application/json"
         }
 
-        payload = json.dumps({
-            "spaceId": int(auth_creds.get('spaceID')),
-            "status": "current",
-            "parentId": parent_folder,
-            "title": self.src_data.get('name'),
-            "body": {
-                "representation": "storage",
-                "value": self.page_content
-                # "value": '<h1>Test</h1><p>text</p>'
-            }
-        })
+        retry_count = 2
+        success = False
+        while retry_count > 0 and not success:
+            title_prefix = f'-{self.src_data.get("id")}'*(2-retry_count)
+            page_title = f"{self.src_data.get('name')}{title_prefix}"
+            payload = json.dumps({
+                "spaceId": int(auth_creds.get('spaceID')),
+                "status": "current",
+                "parentId": parent_folder,
+                "title": page_title,
+                "body": {
+                    "representation": "storage",
+                    "value": self.page_content
+                    # "value": '<h1>Test</h1><p>text</p>'
+                }
+            })
 
-        response = requests.request(
-            "POST",
-            url,
-            data=payload,
-            headers=headers,
-            auth=auth
-        )
+            response = requests.request(
+                "POST",
+                url,
+                data=payload,
+                headers=headers,
+                auth=auth
+            )
+            success = True if response.status_code == 200 else False
+            retry_count -= 1
 
-        tmp = response.json()
-        pprint(tmp)
-        self.confluence_page_data = tmp
+        # OUT = {
+        #     'status': False,
+        #     'msg': 'Uninitialized',
+        #     'status-code': 600,
+        #     'return': None
+        # }
+        OUT['status'] = True if response.status_code == 200 else False
+        OUT['status_code'] = response.status_code
+        OUT['return'] = response.json()
+        OUT['msg'] = response.reason
+        self.confluence_page_data = response.json()
 
-        return True if response.status_code == 200 else False
+        return OUT
 
     @staticmethod
     def create_confluence_folder(parent_folder_name):

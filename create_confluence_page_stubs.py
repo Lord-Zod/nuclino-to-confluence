@@ -4,18 +4,36 @@
 # ... Add Table with Archival Info
 # ... Add title"""
 # PYTHON IMPORTS
-from pprint import pprint
+from datetime import datetime
+import logging
+import os
+from pprint import pprint, pformat
 import yaml
 
 from make_confluence_pages import PageHandler, DocUser, DocEntity, DocEntityTree, UserList
 
+logger = logging.getLogger(__name__)
+loghandle = logging.FileHandler(os.path.normpath(os.path.join(os.getcwd(), 'create_confluence_pages.log')))
+loghandle.setLevel(logging.DEBUG)
+logger.addHandler(loghandle)
 
+TESTING_SETTINGS = {
+    'make_content': True,
+    'make_page': True,
+    'add_tags': True
+}
 
 def make_docs():
     """
 
     :return:
     """
+    logger.info(
+        f'''-------------
+Beginning new run
+{datetime.now().strftime("%Y%m%d-%H:%M:%S")}'''
+    )
+
     data = {}
     with open('nuclino_entity_tree.yaml', 'r') as docs_file:
         data = yaml.safe_load(docs_file)
@@ -24,32 +42,47 @@ def make_docs():
     parent_folder_name = 'Nuclino Docs Import'
     folder_results = PageHandler.PageHandler.create_confluence_folder(parent_folder_name)
     if not folder_results['status']:
-        pprint(folder_results)
+        logger.warning(pformat(folder_results))
         return False
 
     page_handler = PageHandler.PageHandler()
 
     # Create Nuclino Pages in Confluence
-    countdown = len(data)
+    # countdown = len(data)
+    countdown = 20
     for doc in data:
         # A Testing Failsafe
         # Example: set "countdown" to a smaller number when testing initial pipeline
+        logger.info(f'Countdown: {countdown}')
         if countdown <= 0:
             break
 
         # Create the doc body content
-        page_handler.create_page_content(data[doc])
+        if TESTING_SETTINGS['make_content']:
+            content_results = page_handler.create_page_content(data[doc], logger)
+            logger.info(f'''Results of creating page content:
+{pformat(content_results)}''')
+            if not content_results['status']:
+                logger.warning(f'Creating page content failed. Decrementing countdown. Continuing to next doc')
+                countdown -= 1
+                continue
 
         # Create the page in Confluence
-        if not page_handler.create_confluence_page(parent_folder=folder_results['folder_id']):
-            return False
-        countdown -= 1
+        if TESTING_SETTINGS['make_page']:
+            create_results = page_handler.create_confluence_page(parent_folder=folder_results['folder_id'])
+            if not create_results['status']:
+                logger.warning('Creating Confluence Page failed')
+                logger.warning(f'{pformat(create_results)}')
 
         # Tag the page for later ease of finding by nuclino ID
-        results = page_handler.tag_nuclino_page_id()
-        pprint(results)
-        if not results['status']:
-            return False
+        if TESTING_SETTINGS['add_tags'] and TESTING_SETTINGS['make_page']:
+            tag_results = page_handler.tag_nuclino_page_id()
+            pprint(tag_results)
+            if not tag_results['status']:
+                logger.warning(f'Failed to tag page: {pformat(tag_results)}')
+
+        logger.info('Decrementing Countdown')
+        countdown -= 1
 
     # Setting Parent Doc Relationships
     for doc in data:
