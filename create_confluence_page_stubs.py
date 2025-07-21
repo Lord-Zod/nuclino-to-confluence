@@ -18,9 +18,12 @@ loghandle.setLevel(logging.DEBUG)
 logger.addHandler(loghandle)
 
 TESTING_SETTINGS = {
-    'make_content': True,
-    'make_page': True,
-    'add_tags': True
+    'make_space_folder': False,
+    'make_content': False,
+    'make_page': False,
+    'add_tags': False,
+    'assign_parents': True,
+    'use_parenting_mockup': True,
 }
 
 def make_docs():
@@ -35,15 +38,17 @@ Beginning new run
     )
 
     data = {}
-    with open('nuclino_entity_tree.yaml', 'r') as docs_file:
+    datafile = 'nuclino_entity_tree_parent_testing.yaml' if TESTING_SETTINGS['use_parenting_mockup'] else 'nuclino_entity_tree.yaml'
+    with open(datafile, 'r') as docs_file:
         data = yaml.safe_load(docs_file)
 
     # Create parent import folder
-    parent_folder_name = 'Nuclino Docs Import'
-    folder_results = PageHandler.PageHandler.create_confluence_folder(parent_folder_name)
-    if not folder_results['status']:
-        logger.warning(pformat(folder_results))
-        return False
+    if TESTING_SETTINGS['make_space_folder']:
+        parent_folder_name = 'Nuclino Docs Import'
+        folder_results = PageHandler.PageHandler.create_confluence_folder(parent_folder_name)
+        if not folder_results['status']:
+            logger.warning(pformat(folder_results))
+            return False
 
     page_handler = PageHandler.PageHandler()
 
@@ -85,8 +90,14 @@ Beginning new run
         countdown -= 1
 
     # Setting Parent Doc Relationships
+    if not TESTING_SETTINGS['assign_parents']:
+        logger.info('Parent relationships will not be defined')
+        return
+
+    logger.info(f'Beginning Parent Relationship Assignment')
     for doc in data:
-        pass
+        result = page_handler.set_doc_parent(data[doc], logger)
+        logger.info(f'{result} - {pformat(data[doc])}')
 
 
     print('end')

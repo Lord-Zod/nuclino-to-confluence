@@ -14,7 +14,7 @@ Performs these tasks
 import importlib
 import markdown
 import os
-from pprint import pprint
+from pprint import pprint, pformat
 import re
 import sys
 import requests
@@ -256,7 +256,7 @@ class PageHandler:
         return OUT
 
     @staticmethod
-    def set_doc_parent(nuclino_data:dict):
+    def set_doc_parent(nuclino_data:dict, logger):
         """
         Does current page need reparenting?
         If yes, continue
@@ -287,14 +287,119 @@ class PageHandler:
         # Get Current Page ID
         url = f"https://{auth_creds.get('domain')}/wiki/rest/api/label"
 
-        payload = json.dumps({
-            "name": f"nuclino-id_{nuclino_data.get('id')}"
-        })
+        current_page_payload = {
+            "name": f"team:nuclino-id_{nuclino_data.get('id')}"
+        }
 
-        response = requests.request(
+
+        '''
+        {
+            "label":{
+                "prefix":"<string>",
+                "name":"<string>",
+                "id":"<string>",
+                "label":"<string>"
+            },
+            "associatedContents":{
+                "results":[
+                    {
+                        "contentType":"page",
+                        "contentId":2154,
+                        "title":"<string>"
+                    }
+                ],
+                "start":2154,
+                "limit":2154,
+                "size":2154
+            }
+        }
+        '''
+        current_page_response = requests.request(
             "GET",
             url,
-            params=payload,
+            params=current_page_payload,
             headers=headers_labels,
             auth=auth
         )
+        current_page_success = True if current_page_response.status_code == 200 else False
+        if not current_page_success:
+            logger.error(f'''Attempting to get current page info by label failed-------
+NUCLINO-DATA: {pformat(nuclino_data)}
+CONFLUENCE-FETCH-RESULTS: {pformat(current_page_response)}''')
+            return False
+
+        tmp_data = current_page_response.json()
+        tmp_results = tmp_data.get('associatedContents', {}).get('results')
+        if len(tmp_results) > 1:
+            logger.error(f'More than one page found for supposedly unique ID label: {tmp_results}')
+            return False
+        else:
+            logger.info(f'Success!! Found just one page: {tmp_results}')
+        current_info = {
+            'success': current_page_success,
+            'page_id': tmp_results[0].get('contentId'),
+            'title': tmp_results[0].get('title'),
+        }
+
+        # Get Parent Page Info
+        parent_page_payload = {
+            "name": f"team:nuclino-id_{nuclino_data.get('parent')}"
+        }
+
+        parent_page_response = requests.request(
+            "GET",
+            url,
+            params=parent_page_payload,
+            headers=headers_labels,
+            auth=auth
+        )
+
+        parent_page_success = True if parent_page_response.status_code == 200 else False
+        if not parent_page_success:
+            logger.error(f'''Attempting to get current page info by label failed-------
+        NUCLINO-DATA: {pformat(nuclino_data)}
+        CONFLUENCE-FETCH-RESULTS: {pformat(parent_page_response)}''')
+            return False
+
+        tmp_data = parent_page_response.json()
+        tmp_results = tmp_data.get('associatedContents', {}).get('results')
+        if len(tmp_results) > 1:
+            logger.error(f'More than one page found for supposedly unique ID label: {tmp_results}')
+            return False
+        else:
+            logger.info(f'Success!! Found just one page: {tmp_results}')
+        parent_info = {
+            'success': parent_page_success,
+            'page_id': tmp_results[0].get('contentId'),
+            'title': tmp_results[0].get('title'),
+        }
+
+        logger.info(f'''Collected IDs are:
+NUCLINO-DATA: {pformat(nuclino_data)}
+CURRENT-PAGE: {pformat(current_info)}
+PARENT-PAGE: {pformat(parent_info)}''')
+
+        url = f"https://{auth_creds.get('domain')}/wiki/rest/api/content/{current_info['page_id']}/move/append/{parent_info['page_id']}"
+        headers = {
+            "Accept": "application/json"
+        }
+
+        response = requests.request(
+            "PUT",
+            url,
+            headers=headers,
+            auth=auth
+        )
+
+        # OUT = {
+        #     'status': False,
+        #     'data': None,
+        #     'msg': 'Uninitialized'
+        # }
+        OUT['status'] = True if response.status_code == 200 else False
+        OUT['data'] = response.json()
+        OUT['msg'] = f'{response.reason} - {response.text}'
+
+        logger.info(f'RESULTS: {pformat(OUT)}')
+
+        return OUT['status']
