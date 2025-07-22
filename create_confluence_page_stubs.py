@@ -18,10 +18,10 @@ loghandle.setLevel(logging.DEBUG)
 logger.addHandler(loghandle)
 
 TESTING_SETTINGS = {
-    'make_space_folder': False,
-    'make_content': False,
-    'make_page': False,
-    'add_tags': False,
+    'make_space_folder': True,
+    'make_content': True,
+    'make_page': True,
+    'add_tags': True,
     'assign_parents': True,
     'use_parenting_mockup': True,
 }
