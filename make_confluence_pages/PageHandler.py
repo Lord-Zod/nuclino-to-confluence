@@ -21,7 +21,7 @@ import requests
 from requests.auth import HTTPBasicAuth
 import json
 
-from make_confluence_pages.MakeTemplateDoc import make_page_body
+from make_confluence_pages.MakeTemplateDoc import make_page_body, make_workspace_body
 from make_confluence_pages.MakeArchivalHeader import make_table
 from make_confluence_pages.GetNuclinoContent import get_nuclino_page_content
 from auth_creds.confluence_creds import get_confluence_auth_creds
@@ -57,6 +57,62 @@ class PageHandler:
         OUT = mainModule.convert_comment_block(OUT)
         OUT = mainModule.convert_code_block(OUT)
         OUT = mainModule.process_refs(OUT)
+        return OUT
+
+    def _make_documentation_page(self, data, logger):
+        OUT = {
+            'status': False,
+            'msg': 'Uninitialized'
+        }
+        try:
+            self.src_data = data
+            meta_table = make_table(
+                url=data['url'],
+                name=data['name'],
+                created_by=data['created_by']['email'],
+                created_date=data['created_date'],
+                updated_by=data['updated_by']['email'],
+                updated_date=data['updated_date'],
+                type=data['type'],
+                age=data['age'],
+            )
+            if not meta_table or meta_table == '':
+                logger.warning(f'Creating page header table failed with input data: {data}')
+
+            # Get doc body
+            preview_results = get_nuclino_page_content(data['id'])
+
+            body = self._convert_nuclino_to_confluence_html(preview_results)
+
+            # Format body
+            self.page_content = make_page_body(
+                table=meta_table,
+                preview_text=preview_results[:200],
+                body=body,
+            )
+            OUT['status'] = True
+            OUT['msg'] = 'Success'
+        except Exception as e:
+            OUT['msg'] = str(e)
+
+        return OUT
+
+    def _make_workspace_page(self, data, logger):
+        OUT = {
+            'status': False,
+            'msg': 'Uninitialized'
+        }
+        try:
+            self.src_data = data
+
+
+            # Format body
+            self.page_content = make_workspace_body()
+            OUT['status'] = True
+            OUT['msg'] = 'Success'
+        except Exception as e:
+            OUT['msg'] = str(e)
+
         return OUT
 
     def tag_nuclino_page_id(self):
@@ -115,34 +171,14 @@ class PageHandler:
             'status': False,
             'msg': 'Uninitialized'
         }
+
         try:
-            self.src_data = data
-            meta_table = make_table(
-                url=data['url'],
-                name=data['name'],
-                created_by=data['created_by']['email'],
-                created_date=data['created_date'],
-                updated_by=data['updated_by']['email'],
-                updated_date=data['updated_date'],
-                type=data['type'],
-                age=data['age'],
-            )
-            if not meta_table or meta_table == '':
-                logger.warning(f'Creating page header table failed with input data: {data}')
-
-            # Get doc body
-            preview_results = get_nuclino_page_content(data['id'])
-
-            body = self._convert_nuclino_to_confluence_html(preview_results)
-
-            # Format body
-            self.page_content = make_page_body(
-                table=meta_table,
-                preview_text=preview_results[:200],
-                body=body,
-            )
-            OUT['status'] = True
-            OUT['msg'] = 'Success'
+            if data['type'] == 'Document':
+                ## Creating content for a workspace
+                OUT = self._make_documentation_page(data, logger)
+            else:
+                ## Creating content for a page
+                OUT = self._make_workspace_page(data, logger)
         except Exception as e:
             OUT['msg'] = str(e)
 
@@ -363,8 +399,8 @@ CONFLUENCE-FETCH-RESULTS: {pformat(current_page_response)}''')
 
         tmp_data = parent_page_response.json()
         tmp_results = tmp_data.get('associatedContents', {}).get('results')
-        if len(tmp_results) > 1:
-            logger.error(f'More than one page found for supposedly unique ID label: {tmp_results}')
+        if len(tmp_results) != 1:
+            logger.error(f'More, or less, than one page found for supposedly unique ID label: {tmp_results}')
             return False
         else:
             logger.info(f'Success!! Found just one page: {tmp_results}')

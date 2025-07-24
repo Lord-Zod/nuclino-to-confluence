@@ -45,7 +45,7 @@ def get_workspaces(allow_list:list, users:UserList)->dict:
         if (doc['name'] in allow_list):
             tmp = DocEntity(doc['name'], doc['id'], 'Workspace')
             tmp.type = 'Workspace'
-            tmp.children = doc['childIds']
+            tmp.childIDs = doc['childIds']
             tmp.created_date = datetime.strptime(doc['createdAt'], '%Y-%m-%dT%H:%M:%S.%fZ')
             tmp.created_by = users.get_user(doc['createdUserId'])
             OUT.add_doc(tmp)
@@ -73,6 +73,7 @@ def get_nuclino_entity_tree()->dict:
     workspaces = get_workspaces(allowed_workspaces, users)
 
     for workspace in workspaces.docs:
+        doc_list.add_doc(workspaces.docs[workspace])
         limit_size = 100
         load_size = 100
         last_id = None

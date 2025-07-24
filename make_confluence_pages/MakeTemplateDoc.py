@@ -21,6 +21,16 @@ page_body = '''<ac:layout><ac:layout-section ac:type="fixed-width" ac:breakout-m
 </ac:layout-cell></ac:layout-section></ac:layout>
 '''
 
+workspace_body = '''<ac:structured-macro ac:name="children" ac:schema-version="2" data-layout="default">
+<ac:parameter ac:name="depth">3</ac:parameter>
+<ac:parameter ac:name="allChildren">true</ac:parameter>
+<ac:parameter ac:name="style" />
+<ac:parameter ac:name="sort">title</ac:parameter>
+<ac:parameter ac:name="sortAndReverse">title</ac:parameter>
+<ac:parameter ac:name="first">0</ac:parameter>
+</ac:structured-macro>
+<p />
+'''
 
 def make_page_body(
         table:str,
@@ -42,3 +52,10 @@ def make_page_body(
     msg = msg.replace('---BODY_TEXT---', body)
 
     return msg
+
+def make_workspace_body():
+    """
+
+    :return:
+    """
+    return workspace_body

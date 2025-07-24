@@ -23,7 +23,8 @@ TESTING_SETTINGS = {
     'make_page': True,
     'add_tags': True,
     'assign_parents': True,
-    'use_parenting_mockup': True,
+    'migration_testing_count': None,
+    'use_parenting_mockup': False,
 }
 
 def make_docs():
@@ -54,7 +55,7 @@ Beginning new run
 
     # Create Nuclino Pages in Confluence
     # countdown = len(data)
-    countdown = 20
+    countdown = len(data) if not TESTING_SETTINGS['migration_testing_count'] else TESTING_SETTINGS['migration_testing_count']
     for doc in data:
         # A Testing Failsafe
         # Example: set "countdown" to a smaller number when testing initial pipeline
