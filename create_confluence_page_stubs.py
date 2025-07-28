@@ -18,13 +18,14 @@ loghandle.setLevel(logging.DEBUG)
 logger.addHandler(loghandle)
 
 TESTING_SETTINGS = {
-    'make_space_folder': True,
-    'make_content': True,
-    'make_page': True,
-    'add_tags': True,
-    'assign_parents': True,
+    'make_space_folder': False,
+    'make_content': False,
+    'make_page': False,
+    'add_tags': False,
+    'assign_parents': False,
+    'migrate_images': True,
     'migration_testing_count': None,
-    'use_parenting_mockup': False,
+    'use_parenting_mockup': True,
 }
 
 def make_docs():
@@ -91,16 +92,17 @@ Beginning new run
         countdown -= 1
 
     # Setting Parent Doc Relationships
-    if not TESTING_SETTINGS['assign_parents']:
-        logger.info('Parent relationships will not be defined')
-        return
+    if TESTING_SETTINGS['assign_parents']:
+        logger.info(f'Beginning Parent Relationship Assignment')
+        for doc in data:
+            result = page_handler.set_doc_parent(data[doc], logger)
+            logger.info(f'{result} - {pformat(data[doc])}')
 
-    logger.info(f'Beginning Parent Relationship Assignment')
-    for doc in data:
-        result = page_handler.set_doc_parent(data[doc], logger)
-        logger.info(f'{result} - {pformat(data[doc])}')
-
-
+    if TESTING_SETTINGS['migrate_images']:
+        logger.info('Beginning Image Migration')
+        for doc in data:
+            result = page_handler.download_image_from_nuclino_page(data[doc], logger)
+            logger.info(f'{result}')
     print('end')
 
 if __name__ == '__main__':

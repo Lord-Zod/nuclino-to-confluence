@@ -25,7 +25,7 @@ from make_confluence_pages.MakeTemplateDoc import make_page_body, make_workspace
 from make_confluence_pages.MakeArchivalHeader import make_table
 from make_confluence_pages.GetNuclinoContent import get_nuclino_page_content
 from auth_creds.confluence_creds import get_confluence_auth_creds
-
+from auth_creds.nuclino_creds import get_nuclino_auth_request, get_nuclino_auth_creds
 
 # Load the main module
 load_import_from = os.path.join(os.path.abspath(os.getcwd()), 'import.py')
@@ -439,3 +439,21 @@ PARENT-PAGE: {pformat(parent_info)}''')
         logger.info(f'RESULTS: {pformat(OUT)}')
 
         return OUT['status']
+
+    @staticmethod
+    def download_image_from_nuclino_page(nuclino_data:dict, logger):
+        """
+
+        :param nuclino_data:
+        :param logger:
+        :return:
+        """
+        # auth_creds = get_nuclino_auth_creds()
+        headers = get_nuclino_auth_request()
+        url = f"https://api.nuclino.com/v0/items/{nuclino_data.get('id')}"
+        response = requests.get(
+            url,
+            headers=headers
+        )
+
+        logger.info(response.json())
