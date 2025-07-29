@@ -12,6 +12,8 @@ Performs these tasks
 4. Ensure parent and child relationships are preserved
 """
 import importlib
+import logging
+
 import markdown
 import os
 from pprint import pprint, pformat
@@ -441,19 +443,73 @@ PARENT-PAGE: {pformat(parent_info)}''')
         return OUT['status']
 
     @staticmethod
-    def download_image_from_nuclino_page(nuclino_data:dict, logger):
+    def download_image_from_nuclino_page(nuclino_data:dict, logger:logging.Logger, settings:dict):
         """
+        {
+          "status": "success",
+          "data": {
+            "object": "file",
+            "id": "eec0a152-b1e9-43fd-bef8-987f95c85c6e",
+            "itemId": "dd9a69db-048d-4644-8738-36bee31bbee0",
+            "fileName": "screenshot.png",
+            "createdAt": "2021-12-15T07:58:11.196Z",
+            "createdUserId": "2e96f3bb-c742-4164-af2c-151ab2fd346b",
+            "download": {
+              "url": "https://nuclino-files.s3.eu-central-1.amazonaws.com/a122ab11...",
+              "expiresAt": "2021-12-15T08:08:49.931Z"
+            }
+          }
+        }
 
         :param nuclino_data:
         :param logger:
+        :param settings:
         :return:
         """
+        OUT = {
+            'status': False,
+            'msg': ''
+        }
         # auth_creds = get_nuclino_auth_creds()
         headers = get_nuclino_auth_request()
-        url = f"https://api.nuclino.com/v0/items/{nuclino_data.get('id')}"
-        response = requests.get(
-            url,
-            headers=headers
-        )
 
-        logger.info(response.json())
+        for doc_file_id in nuclino_data.get('fileIDs', []):
+            url = f"https://api.nuclino.com/v0/files/{doc_file_id}"
+            response = requests.get(
+                url,
+                headers=headers
+            )
+
+            logger.info(response.json())
+            if response.status_code != 200 or response.json().get('status') != 'success':
+                OUT['msg'] = f'{response.reason} - {response.text}'
+                return OUT
+
+            data = response.json().get('data')
+            filename = f'{nuclino_data.get("id")}_{doc_file_id}_{data.get("fileName")}'
+            download_fullpath = os.path.normpath(
+                os.path.join(
+                    str(settings.get('files').get('attachmentdownloadlocation')),
+                    filename
+                )
+            )
+
+            download_url = data.get('download').get('url')  # Replace with your file URL
+            download_response = requests.get(download_url)
+
+            if download_response.status_code != 200:
+                OUT['msg'] = f'''Download failed for: {download_fullpath}
+With message: {download_response.reason} & {download_response.text}'''
+                return OUT
+
+            # Save the file locally
+            with open(download_fullpath, 'wb') as f:
+                f.write(download_response.content)
+
+            OUT['msg'] += f'Downloaded {data.get("fileName")} to {download_fullpath}\n'
+        OUT['status'] = True
+        OUT['msg'] = f'''SUCCESS:
+{OUT["msg"]}'''
+
+        return OUT
+

@@ -26,7 +26,12 @@ template_table = '''<table data-table-width="760" data-layout="default">
             <td><p><strong>Type</strong></p></td>
             <td><p>---DOC_TYPE---</p></td>
             <td><p><strong>Age</strong></p></td>
-            <td><p>---DOC_AGE---</p></td>
+            <td><p>
+                years: ---AGE_YEARS--- <br/>
+                months: ---AGE_MONTHS--- <br/>
+                days: ---AGE_DAYS--- <br />
+                hours: ---AGE_HOURS--- <br />
+            </p></td>
         </tr>
     </tbody>
 </table>'''
@@ -67,7 +72,12 @@ def make_table(
     msg = msg.replace('---UPDATED_BY---', local_args[4])
     msg = msg.replace('---UPDATED_DATE---', local_args[5])
     msg = msg.replace('---DOC_TYPE---', local_args[6])
-    msg = msg.replace('---DOC_AGE---', local_args[7])
+
+    # Converting age dictionary to independent values
+    msg = msg.replace('---AGE_YEARS---', str(local_args[7]['years']))
+    msg = msg.replace('---AGE_MONTHS---', str(local_args[7]['months']))
+    msg = msg.replace('---AGE_DAYS---', str(local_args[7]['days']))
+    msg = msg.replace('---AGE_HOURS---', str(local_args[7]['hours']))
 
     return msg
 

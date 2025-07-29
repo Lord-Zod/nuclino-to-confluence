@@ -9,6 +9,31 @@ import yaml
 from auth_creds import nuclino_creds
 
 
+
+def timedelta_to_ymdh(td:timedelta)-> dict:
+    """
+
+    Args:
+        td:
+
+    Returns:
+
+    """
+    total_days = td.days
+    total_seconds = td.seconds
+
+    # Approximate conversions
+    years = total_days // 365
+    remaining_days = total_days % 365
+
+    months = remaining_days // 30
+    days = remaining_days % 30
+
+    hours = total_seconds // 3600
+
+    return {'years': years, 'months':months, 'days': days, 'hours': hours}
+
+
 class DocUser:
     """
     Single user entity
@@ -66,8 +91,10 @@ class DocEntity:
         self.updated_date:datetime = None
         self.created_by:DocUser = None
         self.updated_by:DocUser = None
-        self.age:timedelta = None
+        self.age:dict = None
         self.url:str = None
+        self.fileIDs = []
+        self.itemIDs = []
 
     def __repr__(self):
         return f'{self.workspace.name}-{self.name}-{self.type}-{self.updated_by.email}-{self.updated_date.strftime("%Y-%m-%d")}'
@@ -90,13 +117,15 @@ class DocEntity:
             'childIDs': self.childIDs,
             'workspace': self.workspace,
             'parent': self.parent,
-            'children': pformat(self.children),
+            'children': self.children,
             'created_date': self.created_date.strftime("%Y-%m-%d_%H:%M:%S") if self.created_date else None,
             'updated_date': self.updated_date.strftime("%Y-%m-%d_%H:%M:%S") if self.updated_date else None,
-            'age': pformat(self.age),
+            'age': self.age,
             'created_by': self.created_by.get_as_dict() if self.created_by else None,
             'updated_by': self.updated_by.get_as_dict() if self.updated_by else None,
             'url': self.url,
+            'itemIDs': self.itemIDs,
+            'fileIDs': self.fileIDs
         }
 
     @classmethod
@@ -121,7 +150,9 @@ class DocEntity:
         tmp.created_by = user_list.get_user(data.get('createdUserId'))
         tmp.updated_by = user_list.get_user(data.get('lastUpdatedUserId'))
         tmp.workspace = data.get('workspace')
-        tmp.age = tmp.updated_date - tmp.created_date
+        tmp.fileIDs = data.get('contentMeta', {}).get('fileIds')
+        tmp.itemIDs = data.get('contentMeta', {}).get('itemIds')
+        tmp.age = timedelta_to_ymdh(datetime.now() - tmp.updated_date)
         # tmp.parent = workspace
         if entity_type == 'Collection':
             tmp.childIDs = data.get('childIds')

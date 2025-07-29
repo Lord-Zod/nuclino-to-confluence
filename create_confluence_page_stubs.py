@@ -11,6 +11,7 @@ from pprint import pprint, pformat
 import yaml
 
 from make_confluence_pages import PageHandler, DocUser, DocEntity, DocEntityTree, UserList
+from get_nuclino_entity_tree import get_settings
 
 logger = logging.getLogger(__name__)
 loghandle = logging.FileHandler(os.path.normpath(os.path.join(os.getcwd(), 'create_confluence_pages.log')))
@@ -101,7 +102,7 @@ Beginning new run
     if TESTING_SETTINGS['migrate_images']:
         logger.info('Beginning Image Migration')
         for doc in data:
-            result = page_handler.download_image_from_nuclino_page(data[doc], logger)
+            result = page_handler.download_image_from_nuclino_page(data[doc], logger, get_settings())
             logger.info(f'{result}')
     print('end')
 
