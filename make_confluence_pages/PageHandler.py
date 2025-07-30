@@ -15,6 +15,7 @@ import importlib
 import logging
 
 import markdown
+import mimetypes
 import os
 from pprint import pprint, pformat
 import re
@@ -468,7 +469,8 @@ PARENT-PAGE: {pformat(parent_info)}''')
         """
         OUT = {
             'status': False,
-            'msg': ''
+            'msg': '',
+            'files': []
         }
         # auth_creds = get_nuclino_auth_creds()
         headers = get_nuclino_auth_request()
@@ -507,9 +509,137 @@ With message: {download_response.reason} & {download_response.text}'''
                 f.write(download_response.content)
 
             OUT['msg'] += f'Downloaded {data.get("fileName")} to {download_fullpath}\n'
+            OUT['files'].append(download_fullpath)
+
+            
         OUT['status'] = True
         OUT['msg'] = f'''SUCCESS:
 {OUT["msg"]}'''
 
         return OUT
+
+
+    @staticmethod
+    def attach_file_to_confluence_page_object(nuclino_data, file_download, logger):
+        """
+
+        :param nuclino_data:
+        :param file_download:
+        :param logger:
+        :return:
+        """
+
+        auth_creds = get_confluence_auth_creds()
+        auth = HTTPBasicAuth(
+            auth_creds.get('user'),
+            auth_creds.get('key'),
+        )
+        headers = {
+            "Accept": "application/json"
+        }
+
+        # Get Current Page ID
+        url = f"https://{auth_creds.get('domain')}/wiki/rest/api/label"
+        current_page_payload = {
+            "name": f"team:nuclino-id_{nuclino_data.get('id')}"
+        }
+        current_page_response = requests.request(
+            "GET",
+            url,
+            params=current_page_payload,
+            headers=headers,
+            auth=auth
+        )
+        current_page_success = True if current_page_response.status_code == 200 else False
+        if not current_page_success:
+            logger.error(f'''Attempting to get current page info by label failed-------
+                NUCLINO-DATA: {pformat(nuclino_data)}
+                CONFLUENCE-FETCH-RESULTS: {pformat(current_page_response)}''')
+            return False
+        tmp_data = current_page_response.json()
+
+
+        # Upload content to page
+        confluence_page_id = tmp_data.get('associatedContents').get('results')[0].get('contentId')
+        url = f"https://{auth_creds.get('domain')}/wiki/rest/api/content/{confluence_page_id}/child/attachment"
+        filename = os.path.basename(file_download)
+        comment, anon = mimetypes.guess_type(filename)
+        headers = {
+            'X-Atlassian-Token': 'nocheck',
+        }
+        files = {
+            'file': open(file_download, 'rb'),
+            'minorEdit': (None, 'true'),
+            'comment': (None, 'Attachment Migration from Nuclino', comment),
+        }
+
+        upload_response = requests.post(
+            url=url,
+            headers=headers,
+            files=files,
+            auth=auth,
+        )
+
+        if upload_response != 200:
+            logger.error(f'''Failed to upload the attachment: {file_download} to document id: {confluence_page_id}
+ERROR Message: {upload_response.reason}. {upload_response.text}''')
+
+
+        @staticmethod
+        def update_confluence_page_with_attachment(nuclino_data, file_download, logger):
+            '''
+
+            :param nuclino_data:
+            :param file_download:
+            :param logger:
+            :return:
+            '''
+        # Get Confluence Page Data
+        '''
+        {
+          "id": "<string>",
+          "status": "current",
+          "title": "<string>",
+          "spaceId": "<string>",
+          "parentId": "<string>",
+          "parentType": "page",
+          "position": 57,
+          "authorId": "<string>",
+          "ownerId": "<string>",
+          "lastOwnerId": "<string>",
+          "createdAt": "<string>",
+          "version": {
+            "createdAt": "<string>",
+            "message": "<string>",
+            "number": 19,
+            "minorEdit": true,
+            "authorId": "<string>"
+          },
+          "body": {
+            "storage": {},
+            "atlas_doc_format": {},
+            "view": {}
+          },
+        }
+        '''
+
+        url = f"https://{auth_creds.get('domain')}/wiki/api/v2/pages/{tmp_data.get('id')}"
+
+        confluence_page_response = requests.request(
+            "GET",
+            url,
+            headers=headers,
+            auth=auth
+        )
+
+        if confluence_page_response.status_code != 200:
+            logger.error(
+                f'''Failed to collect confluence page data from id: {tmp_data.get("id")}
+ERROR Message: {confluence_page_response.reason}. {confluence_page_response.text}'''
+            )
+            return False
+
+        content_body = confluence_page_response.json().get('body').get('storage')
+        content_version = confluence_page_response.json().get('version').get('number')
+
 

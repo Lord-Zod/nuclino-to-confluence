@@ -102,8 +102,16 @@ Beginning new run
     if TESTING_SETTINGS['migrate_images']:
         logger.info('Beginning Image Migration')
         for doc in data:
-            result = page_handler.download_image_from_nuclino_page(data[doc], logger, get_settings())
-            logger.info(f'{result}')
+            file_download_result = page_handler.download_image_from_nuclino_page(data[doc], logger, get_settings())
+            logger.info(f'{file_download_result}')
+
+            if not file_download_result['status']:
+                logger.error(file_download_result['msg'])
+                return False
+
+            # Move to Confluence
+            for file_download in file_download_result['files']:
+                confluence_attach_results = page_handler.attach_file_to_confluence_page_object(data[doc], file_download, logger)
     print('end')
 
 if __name__ == '__main__':
