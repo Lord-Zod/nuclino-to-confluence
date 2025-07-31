@@ -444,6 +444,56 @@ PARENT-PAGE: {pformat(parent_info)}''')
         return OUT['status']
 
     @staticmethod
+    def get_confluence_page_id(nuclino_data:dict, logger):
+        """
+
+        :param nuclino_data:
+        :param logger:
+        :return:
+        """
+        OUT = {
+            'status': False,
+            'msg': 'Unitialized',
+            'confluence_id': None
+        }
+        auth_creds = get_confluence_auth_creds()
+        auth = HTTPBasicAuth(
+            auth_creds.get('user'),
+            auth_creds.get('key'),
+        )
+        headers = {
+            "Accept": "application/json"
+        }
+
+        # Get Current Page ID
+        url = f"https://{auth_creds.get('domain')}/wiki/rest/api/label"
+        current_page_payload = {
+            "name": f"team:nuclino-id_{nuclino_data.get('id')}"
+        }
+        current_page_response = requests.request(
+            "GET",
+            url,
+            params=current_page_payload,
+            headers=headers,
+            auth=auth
+        )
+        current_page_success = True if current_page_response.status_code == 200 else False
+        if not current_page_success:
+            msg = f'''Attempting to get current page info by label failed-------
+        NUCLINO-DATA: {pformat(nuclino_data)}
+        CONFLUENCE-FETCH-RESULTS: {pformat(current_page_response)}'''
+            logger.error(msg)
+            OUT['msg'] = msg
+            return OUT
+        tmp_data = current_page_response.json()
+
+        # Upload content to page
+        OUT['status'] = True
+        OUT['msg'] = 'Success'
+        OUT['confluence_page_id'] = tmp_data.get('associatedContents').get('results')[0].get('contentId')
+        return OUT
+
+    @staticmethod
     def download_image_from_nuclino_page(nuclino_data:dict, logger:logging.Logger, settings:dict):
         """
         {
@@ -518,17 +568,20 @@ With message: {download_response.reason} & {download_response.text}'''
 
         return OUT
 
-
     @staticmethod
-    def attach_file_to_confluence_page_object(nuclino_data, file_download, logger):
+    def attach_file_to_confluence_page_object(nuclino_data, file_download, confluence_page_id, logger):
         """
 
         :param nuclino_data:
         :param file_download:
+        :param confluence_page_id:
         :param logger:
         :return:
         """
-
+        OUT = {
+            'status': False,
+            'msg': 'Unitialized'
+        }
         auth_creds = get_confluence_auth_creds()
         auth = HTTPBasicAuth(
             auth_creds.get('user'),
@@ -537,30 +590,6 @@ With message: {download_response.reason} & {download_response.text}'''
         headers = {
             "Accept": "application/json"
         }
-
-        # Get Current Page ID
-        url = f"https://{auth_creds.get('domain')}/wiki/rest/api/label"
-        current_page_payload = {
-            "name": f"team:nuclino-id_{nuclino_data.get('id')}"
-        }
-        current_page_response = requests.request(
-            "GET",
-            url,
-            params=current_page_payload,
-            headers=headers,
-            auth=auth
-        )
-        current_page_success = True if current_page_response.status_code == 200 else False
-        if not current_page_success:
-            logger.error(f'''Attempting to get current page info by label failed-------
-                NUCLINO-DATA: {pformat(nuclino_data)}
-                CONFLUENCE-FETCH-RESULTS: {pformat(current_page_response)}''')
-            return False
-        tmp_data = current_page_response.json()
-
-
-        # Upload content to page
-        confluence_page_id = tmp_data.get('associatedContents').get('results')[0].get('contentId')
         url = f"https://{auth_creds.get('domain')}/wiki/rest/api/content/{confluence_page_id}/child/attachment"
         filename = os.path.basename(file_download)
         comment, anon = mimetypes.guess_type(filename)
@@ -580,20 +609,27 @@ With message: {download_response.reason} & {download_response.text}'''
             auth=auth,
         )
 
-        if upload_response != 200:
-            logger.error(f'''Failed to upload the attachment: {file_download} to document id: {confluence_page_id}
-ERROR Message: {upload_response.reason}. {upload_response.text}''')
+        if upload_response.status_code != 200:
+            msg = f'''Failed to upload the attachment: {file_download} to document id: {confluence_page_id}
+ERROR Message: {upload_response.reason}. {upload_response.text}'''
+            OUT['msg'] = msg
+            return OUT
 
+        OUT['status'] = True
+        OUT['msg'] = f'''Successful upload of attachment ({file_download})
+{upload_response.reason}. {upload_response.text}'''
+        return OUT
 
-        @staticmethod
-        def update_confluence_page_with_attachment(nuclino_data, file_download, logger):
-            '''
+    @staticmethod
+    def update_confluence_page_with_attachment(nuclino_data, file_download, confluence_page_id, logger):
+        '''
 
-            :param nuclino_data:
-            :param file_download:
-            :param logger:
-            :return:
-            '''
+        :param nuclino_data:
+        :param file_download:
+        :param confluence_page_id:
+        :param logger:
+        :return:
+        '''
         # Get Confluence Page Data
         '''
         {
@@ -622,24 +658,123 @@ ERROR Message: {upload_response.reason}. {upload_response.text}''')
           },
         }
         '''
+        OUT = {
+            'status': False,
+            'msg': 'Unitialized'
+        }
+        auth_creds = get_confluence_auth_creds()
+        auth = HTTPBasicAuth(
+            auth_creds.get('user'),
+            auth_creds.get('key'),
+        )
+        headers = {
+            "Accept": "application/json"
+        }
+        params = {
+            'body-format': 'storage'
+        }
 
-        url = f"https://{auth_creds.get('domain')}/wiki/api/v2/pages/{tmp_data.get('id')}"
-
+        url = f"https://{auth_creds.get('domain')}/wiki/api/v2/pages/{confluence_page_id}"
         confluence_page_response = requests.request(
             "GET",
             url,
             headers=headers,
-            auth=auth
+            auth=auth,
+            params=params
         )
 
         if confluence_page_response.status_code != 200:
-            logger.error(
-                f'''Failed to collect confluence page data from id: {tmp_data.get("id")}
+            OUT['msg'] = f'''Failed to collect confluence page data from id: {confluence_page_id}
 ERROR Message: {confluence_page_response.reason}. {confluence_page_response.text}'''
-            )
-            return False
+            return OUT
 
         content_body = confluence_page_response.json().get('body').get('storage')
-        content_version = confluence_page_response.json().get('version').get('number')
+        content_version = int(confluence_page_response.json().get('version').get('number'))
+
+        if not content_body:
+            OUT['status'] = True
+            OUT['msg'] = 'No content body'
+
+        if not content_version:
+            OUT['status'] = False
+            OUT['msg'] = 'Collecting page version failed'
+            return OUT
+
+        file_id = file_download.split('_',2)[-1]
+        file_basename = file_download.split('_')[-1]
+        # old_nuclino_file_link_re = f"<a href=\\\"https://files.nuclino.com/files/[a-z-_0-9]*({file_id}).*</a>"
+        # old_nuclino_img_link_re = f"<img alt=\"({file_basename})\" src=\".*({file_basename})\".?/>"
+        re_nuclino_searches = [
+            f"<a href=\\\"https://files.nuclino.com/files/[a-z-_0-9]*/({file_id}).*</a>",
+            f"<img alt=\"({file_basename})\" src=\".*({file_basename})\".?/>"
+        ]
+
+        re_results = None
+        for re_search in re_nuclino_searches:
+            re_results = re.search(re_search, content_body.get('value'))
+            if re_results:
+                break
+        # matches = re_results.groups()
+
+        file_type = 'image' if file_download.split('.')[1] in ['png', 'jpg', 'jpeg', 'gif', 'tga', 'bmp'] else 'file'
+        filename = os.path.basename(file_download)
+        swap = f'''
+<ac:{file_type}>
+  <ri:attachment ri:filename="{filename}" />
+</ac:{file_type}>
+'''
+        # content_body.get('value').replace(re_results.group(0), swap)
+        found_section = re_results.group(0)
+        new_content = content_body.get('value')
+        new_content = new_content.replace(found_section, swap)
+        content_version += 1
+
+        OUT['status'] = True
+        OUT['message'] = 'Success'
+
+        # return OUT
+
+        '''
+        </tr>\n    
+</tbody>\n
+</table>\n
+</ac:layout-cell>
+</ac:layout-section>\n
+<ac:layout-section ac:type=\"two_equal\" ac:breakout-mode=\"default\">
+   <ac:layout-cell>
+       <h1>Table of Contents</h1>
+       <ac:structured-macro ac:name=\"toc\" ac:schema-version=\"1\" data-layout=\"default\" ac:macro-id=\"756d9a45-0e62-4c5b-9472-5ced60708d79\">
+           <ac:parameter ac:name=\"minLevel\">1</ac:parameter>
+           <ac:parameter ac:name=\"maxLevel\">2</ac:parameter>
+           <ac:parameter ac:name=\"outline\">false</ac:parameter>
+           <ac:parameter ac:name=\"style\">none</ac:parameter>
+           <ac:parameter ac:name=\"type\">list</ac:parameter>
+           <ac:parameter ac:name=\"printable\">true</ac:parameter>
+       </ac:structured-macro>
+   </ac:layout-cell>\n\n
+   <ac:layout-cell>\n
+       <h1>Child Pages</h1>\n
+       <ac:structured-macro ac:name=\"children\" ac:schema-version=\"2\" data-layout=\"default\" ac:macro-id=\"55f9e977-282a-4f87-b76d-4d590d85960a\">
+           <ac:parameter ac:name=\"all\">true</ac:parameter>
+           <ac:parameter ac:name=\"depth\">3</ac:parameter>
+       </ac:structured-macro>\n
+   </ac:layout-cell>
+</ac:layout-section>
+<ac:layout-section ac:type=\"fixed-width\" ac:breakout-mode=\"default\">
+   <ac:layout-cell>\n
+       <hr />\n
+       <h1>Original Document</h1>\n
+       <p>
+           <br />
+       </p>\n
+       <p>
+           <a href=\"https://files.nuclino.com/files/4284b5d9-771e-4e32-8dd1-9aa0d3ac3375/Riviana_New_Bundle_Workbook_Example.xlsx\">Riviana_New_Bundle_Workbook_Example.xlsx</a>
+       </p>\n
+   </ac:layout-cell>
+</ac:layout-section>
+</ac:layout>"
+        '''
 
 
+
+        return OUT

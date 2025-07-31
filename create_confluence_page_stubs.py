@@ -25,6 +25,8 @@ TESTING_SETTINGS = {
     'add_tags': False,
     'assign_parents': False,
     'migrate_images': True,
+    'attach_images': False,
+    'link_images': True,
     'migration_testing_count': None,
     'use_parenting_mockup': True,
 }
@@ -104,14 +106,41 @@ Beginning new run
         for doc in data:
             file_download_result = page_handler.download_image_from_nuclino_page(data[doc], logger, get_settings())
             logger.info(f'{file_download_result}')
-
             if not file_download_result['status']:
                 logger.error(file_download_result['msg'])
                 return False
 
+            confluence_page_id_results = page_handler.get_confluence_page_id(data[doc], logger)
+            if not confluence_page_id_results['status']:
+                logger.error('Failed to get confluence page ID')
+                return False
+
+            confluence_page_id = confluence_page_id_results['confluence_page_id']
+
             # Move to Confluence
             for file_download in file_download_result['files']:
-                confluence_attach_results = page_handler.attach_file_to_confluence_page_object(data[doc], file_download, logger)
+
+                if TESTING_SETTINGS['attach_images']:
+                    confluence_attach_results = page_handler.attach_file_to_confluence_page_object(
+                        data[doc],
+                        file_download,
+                        confluence_page_id,
+                        logger
+                    )
+                    if not confluence_attach_results['status']:
+                        logger.error(confluence_attach_results['msg'])
+                        return False
+
+                if TESTING_SETTINGS['link_images']:
+                    confluence_update_results = page_handler.update_confluence_page_with_attachment(
+                        data[doc],
+                        file_download,
+                        confluence_page_id,
+                        logger
+                    )
+                    if not confluence_update_results['status']:
+                        logger.error(confluence_update_results['msg'])
+                        return False
     print('end')
 
 if __name__ == '__main__':
