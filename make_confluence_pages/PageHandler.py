@@ -621,7 +621,7 @@ ERROR Message: {upload_response.reason}. {upload_response.text}'''
         return OUT
 
     @staticmethod
-    def update_confluence_page_with_attachment(nuclino_data, file_download, confluence_page_id, logger):
+    def get_confluence_page_attachment_replacements(nuclino_data, file_download, confluence_page_id, logger):
         '''
 
         :param nuclino_data:
@@ -660,7 +660,14 @@ ERROR Message: {upload_response.reason}. {upload_response.text}'''
         '''
         OUT = {
             'status': False,
-            'msg': 'Unitialized'
+            'msg': 'Unitialized',
+            'replacement': {
+                'before': '',
+                'after': '',
+                'version': 0,
+                'body': '',
+                'title': ''
+            }
         }
         auth_creds = get_confluence_auth_creds()
         auth = HTTPBasicAuth(
@@ -690,6 +697,7 @@ ERROR Message: {confluence_page_response.reason}. {confluence_page_response.text
 
         content_body = confluence_page_response.json().get('body').get('storage')
         content_version = int(confluence_page_response.json().get('version').get('number'))
+        title = confluence_page_response.json().get('title')
 
         if not content_body:
             OUT['status'] = True
@@ -716,18 +724,37 @@ ERROR Message: {confluence_page_response.reason}. {confluence_page_response.text
                 break
         # matches = re_results.groups()
 
+        swap = ''
         file_type = 'image' if file_download.split('.')[1] in ['png', 'jpg', 'jpeg', 'gif', 'tga', 'bmp'] else 'file'
         filename = os.path.basename(file_download)
-        swap = f'''
+
+        if file_type == 'image':
+            swap = f'''
 <ac:{file_type}>
   <ri:attachment ri:filename="{filename}" />
 </ac:{file_type}>
+'''
+        else:
+            swap = f'''
+<p class="media-group">
+    <ac:structured-macro ac:name="view-file" ac:schema-version="1">
+        <ac:parameter ac:name="name">
+            <ri:attachment ri:filename="{filename}" />
+        </ac:parameter>
+    </ac:structured-macro>
+<p />
 '''
         # content_body.get('value').replace(re_results.group(0), swap)
         found_section = re_results.group(0)
         new_content = content_body.get('value')
         new_content = new_content.replace(found_section, swap)
         content_version += 1
+
+        OUT['replacement']['before'] = found_section
+        OUT['replacement']['after'] = swap
+        OUT['replacement']['version'] = content_version
+        OUT['replacement']['body'] = new_content
+        OUT['replacement']['title'] = title
 
         OUT['status'] = True
         OUT['message'] = 'Success'

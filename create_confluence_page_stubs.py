@@ -118,6 +118,7 @@ Beginning new run
             confluence_page_id = confluence_page_id_results['confluence_page_id']
 
             # Move to Confluence
+            text_replacements = []
             for file_download in file_download_result['files']:
 
                 if TESTING_SETTINGS['attach_images']:
@@ -132,15 +133,29 @@ Beginning new run
                         return False
 
                 if TESTING_SETTINGS['link_images']:
-                    confluence_update_results = page_handler.update_confluence_page_with_attachment(
+                    confluence_replacement_results = page_handler.get_confluence_page_attachment_replacements(
                         data[doc],
                         file_download,
                         confluence_page_id,
                         logger
                     )
-                    if not confluence_update_results['status']:
-                        logger.error(confluence_update_results['msg'])
+                    if not confluence_replacement_results['status']:
+                        logger.error(confluence_replacement_results['msg'])
                         return False
+                    text_replacements.append(confluence_replacement_results['replacement'])
+
+            if len(text_replacements) > 0:
+                body = text_replacements[0]['body']
+                version = 0
+                for item in text_replacements:
+                    body = body.replace(
+                        item['before'],
+                        item['after']
+                    )
+                    version = item['version']
+                update_results = page_handler.update_confluence_page_body(confluence_page_id, body, version, title, )
+            else:
+                logger.warning('WARNING: Replacement searches FAILED')
     print('end')
 
 if __name__ == '__main__':
