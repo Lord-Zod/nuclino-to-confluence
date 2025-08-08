@@ -17,12 +17,14 @@ import logging
 import markdown
 import mimetypes
 import os
+from PIL import Image
 from pprint import pprint, pformat
 import re
 import sys
 import requests
 from requests.auth import HTTPBasicAuth
 import json
+import unicodedata
 
 from make_confluence_pages.MakeTemplateDoc import make_page_body, make_workspace_body
 from make_confluence_pages.MakeArchivalHeader import make_table
@@ -36,6 +38,22 @@ spec = importlib.util.spec_from_file_location('import.py', load_import_from)
 mainModule = importlib.util.module_from_spec(spec)
 sys.modules['import.py'] = mainModule
 spec.loader.exec_module(mainModule)
+
+
+
+def convert_to_ascii(filename):
+    """
+
+    :param filename:
+    :return:
+    """
+    # Normalize the filename to NFKD form
+    normalized = unicodedata.normalize('NFKD', filename)
+    # Encode to ASCII bytes, ignoring non-ASCII characters
+    ascii_bytes = normalized.encode('ascii', 'ignore')
+    # Decode back to string
+    ascii_filename = ascii_bytes.decode('ascii')
+    return ascii_filename
 
 
 class PageHandler:
@@ -555,7 +573,7 @@ With message: {download_response.reason} & {download_response.text}'''
                 return OUT
 
             # Save the file locally
-            with open(download_fullpath, 'wb') as f:
+            with open(convert_to_ascii(download_fullpath), 'wb') as f:
                 f.write(download_response.content)
 
             OUT['msg'] += f'Downloaded {data.get("fileName")} to {download_fullpath}\n'
@@ -591,13 +609,13 @@ With message: {download_response.reason} & {download_response.text}'''
             "Accept": "application/json"
         }
         url = f"https://{auth_creds.get('domain')}/wiki/rest/api/content/{confluence_page_id}/child/attachment"
-        filename = os.path.basename(file_download)
+        filename = convert_to_ascii(os.path.basename(file_download))
         comment, anon = mimetypes.guess_type(filename)
         headers = {
             'X-Atlassian-Token': 'nocheck',
         }
         files = {
-            'file': open(file_download, 'rb'),
+            'file': open(convert_to_ascii(file_download), 'rb'),
             'minorEdit': (None, 'true'),
             'comment': (None, 'Attachment Migration from Nuclino', comment),
         }
@@ -609,12 +627,13 @@ With message: {download_response.reason} & {download_response.text}'''
             auth=auth,
         )
 
-        if upload_response.status_code != 200:
+        if upload_response.status_code != 200 and 'Cannot add a new attachment with same file name as an existing attachment' not in upload_response.text:
             msg = f'''Failed to upload the attachment: {file_download} to document id: {confluence_page_id}
 ERROR Message: {upload_response.reason}. {upload_response.text}'''
             OUT['msg'] = msg
             return OUT
 
+        OUT['already_attached'] = True if 'Cannot add a new attachment with same file name as an existing attachment' in upload_response.text else False
         OUT['status'] = True
         OUT['msg'] = f'''Successful upload of attachment ({file_download})
 {upload_response.reason}. {upload_response.text}'''
@@ -713,9 +732,16 @@ ERROR Message: {confluence_page_response.reason}. {confluence_page_response.text
         # old_nuclino_file_link_re = f"<a href=\\\"https://files.nuclino.com/files/[a-z-_0-9]*({file_id}).*</a>"
         # old_nuclino_img_link_re = f"<img alt=\"({file_basename})\" src=\".*({file_basename})\".?/>"
         re_nuclino_searches = [
-            f"<a href=\\\"https://files.nuclino.com/files/[a-z-_0-9]*/({file_id}).*</a>",
-            f"<img alt=\"({file_basename})\" src=\".*({file_basename})\".?/>"
+            f"<a href=\\\"https://files.nuclino.com/files/[a-z-_0-9]*/({re.escape(file_id)}).*</a>",
+            f"<img alt=\"({re.escape(file_basename)})\" src=\".*({re.escape(file_basename)})\".?/>",
+            f"<img src=\".*/({re.escape(file_basename)})\".?/>",
+            f"<img alt=\"({re.escape(file_id)})\" src=\".*({re.escape(file_id)})\".?/>",
+            f"<img src=\".*/({re.escape(file_id)})\".?/>",
         ]
+        logger.info(
+            f'''file_id, file_basename: {file_id}, {file_basename}
+re_nuclino_searches: {pformat(re_nuclino_searches)}'''
+        )
 
         re_results = None
         for re_search in re_nuclino_searches:
@@ -729,10 +755,13 @@ ERROR Message: {confluence_page_response.reason}. {confluence_page_response.text
         filename = os.path.basename(file_download)
 
         if file_type == 'image':
+            with Image.open(file_download) as img:
+                width, height = img.size  # Only metadata is accessed
+
             swap = f'''
-<ac:{file_type}>
-  <ri:attachment ri:filename="{filename}" />
-</ac:{file_type}>
+<ac:image ac:align="center" ac:layout="center" ac:original-height="{height}" ac:original-width="{width}" ac:custom-width="true" ac:alt="{filename}" ac:width="760">
+    <ri:attachment ri:filename="{filename}"/>
+</ac:image>
 '''
         else:
             swap = f'''
@@ -744,64 +773,93 @@ ERROR Message: {confluence_page_response.reason}. {confluence_page_response.text
     </ac:structured-macro>
 <p />
 '''
-        # content_body.get('value').replace(re_results.group(0), swap)
-        found_section = re_results.group(0)
-        new_content = content_body.get('value')
-        new_content = new_content.replace(found_section, swap)
         content_version += 1
+        try:
+            # content_body.get('value').replace(re_results.group(0), swap)
+            found_section = re_results.group(0)
+            new_content = content_body.get('value')
+            # new_content = new_content.replace(found_section, swap)
 
-        OUT['replacement']['before'] = found_section
-        OUT['replacement']['after'] = swap
-        OUT['replacement']['version'] = content_version
-        OUT['replacement']['body'] = new_content
-        OUT['replacement']['title'] = title
+            OUT['replacement']['before'] = found_section
+            OUT['replacement']['after'] = swap
+            OUT['replacement']['version'] = content_version
+            OUT['replacement']['body'] = new_content
+            OUT['replacement']['title'] = title
 
-        OUT['status'] = True
-        OUT['message'] = 'Success'
+            OUT['status'] = True
+            OUT['msg'] = 'Success'
+        except Exception as e:
+            logger.warning(f'FAILED: {e}')
+            OUT['replacement']['before'] = content_body.get('value')
+            OUT['replacement']['after'] = f'{content_body.get("value")}<br/>{swap}'
+            OUT['replacement']['version'] = content_version
+            OUT['replacement']['body'] = content_body.get('value')
+            OUT['replacement']['title'] = title
+
+            OUT['status'] = True
+            OUT['msg'] = 'Replacement Failed. Putting Attachment at end of page'
+
 
         # return OUT
+        return OUT
 
-        '''
-        </tr>\n    
-</tbody>\n
-</table>\n
-</ac:layout-cell>
-</ac:layout-section>\n
-<ac:layout-section ac:type=\"two_equal\" ac:breakout-mode=\"default\">
-   <ac:layout-cell>
-       <h1>Table of Contents</h1>
-       <ac:structured-macro ac:name=\"toc\" ac:schema-version=\"1\" data-layout=\"default\" ac:macro-id=\"756d9a45-0e62-4c5b-9472-5ced60708d79\">
-           <ac:parameter ac:name=\"minLevel\">1</ac:parameter>
-           <ac:parameter ac:name=\"maxLevel\">2</ac:parameter>
-           <ac:parameter ac:name=\"outline\">false</ac:parameter>
-           <ac:parameter ac:name=\"style\">none</ac:parameter>
-           <ac:parameter ac:name=\"type\">list</ac:parameter>
-           <ac:parameter ac:name=\"printable\">true</ac:parameter>
-       </ac:structured-macro>
-   </ac:layout-cell>\n\n
-   <ac:layout-cell>\n
-       <h1>Child Pages</h1>\n
-       <ac:structured-macro ac:name=\"children\" ac:schema-version=\"2\" data-layout=\"default\" ac:macro-id=\"55f9e977-282a-4f87-b76d-4d590d85960a\">
-           <ac:parameter ac:name=\"all\">true</ac:parameter>
-           <ac:parameter ac:name=\"depth\">3</ac:parameter>
-       </ac:structured-macro>\n
-   </ac:layout-cell>
-</ac:layout-section>
-<ac:layout-section ac:type=\"fixed-width\" ac:breakout-mode=\"default\">
-   <ac:layout-cell>\n
-       <hr />\n
-       <h1>Original Document</h1>\n
-       <p>
-           <br />
-       </p>\n
-       <p>
-           <a href=\"https://files.nuclino.com/files/4284b5d9-771e-4e32-8dd1-9aa0d3ac3375/Riviana_New_Bundle_Workbook_Example.xlsx\">Riviana_New_Bundle_Workbook_Example.xlsx</a>
-       </p>\n
-   </ac:layout-cell>
-</ac:layout-section>
-</ac:layout>"
-        '''
+    @staticmethod
+    def update_confluence_page_body(confluence_page_id, body, version, title, logger):
+        """
 
+        :param confluence_page_id:
+        :param body:
+        :param version:
+        :param title:
+        :param logger:
+        :return:
+        """
+        OUT = {
+            'status': False,
+            'msg': 'Uninitialized'
+        }
 
+        auth_creds = get_confluence_auth_creds()
+        auth = HTTPBasicAuth(
+            auth_creds.get('user'),
+            auth_creds.get('key'),
+        )
+        url = f"https://{auth_creds.get('domain')}/wiki/api/v2/pages/{confluence_page_id}"
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }
+
+        payload = json.dumps({
+            "id": confluence_page_id,
+            "status": "current",
+            "title": title,
+            "body": {
+                "representation": "storage",
+                "value": body
+            },
+            "version": {
+                "number": version,
+                "message": 'Linking attachments from Nuclino to Confluence for import finalization'
+            }
+        })
+
+        response = requests.request(
+            "PUT",
+            url,
+            data=payload,
+            headers=headers,
+            auth=auth
+        )
+
+        if response.status_code != 200:
+            msg = f'''Updating the confluence page ({title}: {confluence_page_id}) failed. Exiting early.
+ERROR Message: {response.reason}. {response.text}'''
+            OUT['msg'] = msg
+            return OUT
+
+        OUT['status'] = True
+        OUT['msg'] = f'''SUCCESS:: Updating the confluence page ({title}: {confluence_page_id}) worked. Continuing.
+SUCCESS Message: {response.reason}. {response.text}'''
 
         return OUT
